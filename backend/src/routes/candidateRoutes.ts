@@ -1,20 +1,25 @@
-import { Router } from 'express';
-import { addCandidate } from '../presentation/controllers/candidateController';
+import { Router, Request, Response } from 'express';
+import { CandidateController } from '../presentation/controllers/CandidateController';
+import { ICandidateService } from '../application/services/CandidateService';
 
-const router = Router();
+export function createCandidateRoutes(candidateService: ICandidateService): Router {
+  const router = Router();
+  const candidateController = new CandidateController(candidateService);
 
-router.post('/', async (req, res) => {
-  try {
-    // console.log(req.body); //Just in case you want to inspect the request body
-    const result = await addCandidate(req.body);
-    res.status(201).send(result);
-  } catch (error) {
-    if (error instanceof Error) {
-      res.status(400).send({ message: error.message });
-    } else {
-      res.status(500).send({ message: "An unexpected error occurred" });
-    }
-  }
-});
+  // POST /candidates - Create a new candidate
+  router.post('/', (req: Request, res: Response) => candidateController.createCandidate(req, res));
 
-export default router;
+  // GET /candidates - Get all candidates
+  router.get('/', (req: Request, res: Response) => candidateController.getAllCandidates(req, res));
+
+  // GET /candidates/:id - Get a specific candidate
+  router.get('/:id', (req: Request, res: Response) => candidateController.getCandidateById(req, res));
+
+  // PUT /candidates/:id - Update a candidate
+  router.put('/:id', (req: Request, res: Response) => candidateController.updateCandidate(req, res));
+
+  // DELETE /candidates/:id - Delete a candidate
+  router.delete('/:id', (req: Request, res: Response) => candidateController.deleteCandidate(req, res));
+
+  return router;
+} 

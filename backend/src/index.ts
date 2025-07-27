@@ -1,64 +1,53 @@
-import { Request, Response, NextFunction } from 'express';
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
-import dotenv from 'dotenv';
-import candidateRoutes from './routes/candidateRoutes';
-import { uploadFile } from './application/services/fileUploadService';
 import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import { CandidateRepository } from './infrastructure/repositories/CandidateRepository';
+import { CandidateService } from './application/services/CandidateService';
+import { createCandidateRoutes } from './routes/candidateRoutes';
 
-// Extender la interfaz Request para incluir prisma
-declare global {
-  namespace Express {
-    interface Request {
-      prisma: PrismaClient;
-    }
-  }
-}
-
+// Load environment variables
 dotenv.config();
-const prisma = new PrismaClient();
 
-export const app = express();
-export default app;
+const app = express();
+const PORT = process.env.PORT || 3010;
 
-// Middleware para parsear JSON. Asegúrate de que esto esté antes de tus rutas.
-app.use(express.json());
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(morgan('combined'));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// Middleware para adjuntar prisma al objeto de solicitud
-app.use((req, res, next) => {
-  req.prisma = prisma;
-  next();
+// Initialize dependencies
+const candidateRepository = new CandidateRepository();
+const candidateService = new CandidateService(candidateRepository);
+
+// Routes
+app.use('/candidates', createCandidateRoutes(candidateService));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Middleware para permitir CORS desde http://localhost:3000
-app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true
-}));
-
-// Import and use candidateRoutes
-app.use('/candidates', candidateRoutes);
-
-// Route for file uploads
-app.post('/upload', uploadFile);
-
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
-
-const port = 3010;
-
-app.get('/', (req, res) => {
-  res.send('Hola LTI!');
-});
-
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+// Error handling middleware
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
-  res.type('text/plain'); 
-  res.status(500).send('Something broke!');
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
-app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Route not found' });
 });
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`👥 Candidates API: http://localhost:${PORT}/candidates`);
+});
+
+export default app; 
